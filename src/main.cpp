@@ -55,6 +55,9 @@ static const int MAX_LINES_PER_FILE = 150;
 static const char* fwVersion() { return strlen(FW_VERSION) ? FW_VERSION : "dev"; }
 static uint32_t upS() { return (uint32_t)(esp_timer_get_time() / 1000000ULL); }
 static bool timeValid() { return time(nullptr) > 1700000000; }
+// Seconds since t. t may be written by the Bluetooth task *after* we read the clock,
+// so it can be newer than "now": treat that as 0 instead of letting the subtraction wrap.
+static uint32_t secondsSince(uint32_t t) { uint32_t n = upS(); return t > n ? 0 : n - t; }
 
 // ---------- settings ----------
 struct Config {
@@ -459,7 +462,7 @@ static Rgb statusColor() {
   if (!configured()) return {0, 0, 255};                                   // blue: needs setup
   if (authError) return {255, 0, 0};                                       // red: token/repo problem
   if (WiFi.status() != WL_CONNECTED || !timeValid()) return {255, 140, 0}; // amber: no Wi-Fi/time
-  if (lastAllowedUp == 0 || upS() - lastAllowedUp > NO_SENSOR_WARN_S) return {180, 0, 255}; // purple: no sensors
+  if (lastAllowedUp == 0 || secondsSince(lastAllowedUp) > NO_SENSOR_WARN_S) return {180, 0, 255}; // purple: no sensors
   if (failStreak >= 3) return {255, 0, 0};                                 // red: pushes failing
   return {0, 255, 0};                                                      // green: all good
 }
@@ -693,13 +696,15 @@ void loop() {
 
   // Bluetooth health
   if (scanEnded && up - lastScanKick > 5) { Serial.println("ble: scan stopped, restarting"); startScan(); lastScanKick = up; }
-  uint32_t quiet = up - (lastAllowedUp ? lastAllowedUp : 0);
-  if (lastAllowedUp && quiet > BLE_RESTART_S && up - lastScanKick > BLE_RESTART_S) {
+  up = upS();  // fresh: a push above can take 20 s
+  uint32_t heard = lastAllowedUp;  // read once
+  uint32_t quiet = heard ? secondsSince(heard) : 0;
+  if (heard && quiet > BLE_RESTART_S && up - lastScanKick > BLE_RESTART_S) {
     Serial.println("ble: no sensors heard for 20 min, restarting scan");
     startScan();
     lastScanKick = up;
   }
-  if (lastAllowedUp && quiet > BLE_REBOOT_S) { Serial.println("ble: silent for 2 h, rebooting"); delay(100); ESP.restart(); }
+  if (heard && quiet > BLE_REBOOT_S) { Serial.println("ble: silent for 2 h, rebooting"); delay(100); ESP.restart(); }
 
   if (ESP.getFreeHeap() < 16000) { Serial.println("low memory, rebooting"); delay(100); ESP.restart(); }
 

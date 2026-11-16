@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only this site may be contacted: what you type here can't be sent anywhere else. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Flowerphile bridge</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="ewt/install-button.js"></script>
+<script type="module" src="setup.js"></script>
+</head>
+<body>
+<main>
+  <h1>Flowerphile bridge</h1>
+  <p class="sub">AtomS3 Lite · firmware <span class="mono">__VERSION__</span> · Chrome or Edge on a computer, USB cable</p>
+
+  <section>
+    <h2><span class="n">1</span> Install or update the firmware</h2>
+    <p>Plug the bridge into this computer and press the button. Pick the port that appears
+      (often “USB JTAG/serial debug unit”).</p>
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate" class="btn">Install / update</button>
+      <span slot="unsupported" class="warn">This browser can't talk to USB. Use Chrome or Edge on a computer.</span>
+      <span slot="not-allowed" class="warn">USB needs a secure page (https).</span>
+    </esp-web-install-button>
+    <ul class="small">
+      <li><b>First install:</b> say yes to “erase”. <b>Updates:</b> say no, so the settings stay.</li>
+      <li>If it can't connect: hold the small side button ~2 s until a green light shows, release, try again.</li>
+      <li>When it's done, close that dialog before step 2 (only one thing can use the port at a time).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span> Connect over USB</h2>
+    <p><button id="connect" class="btn">Connect</button>
+       <button id="disconnect" class="btn ghost" disabled>Disconnect</button>
+       <span id="conn" class="small">not connected</span></p>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span> Sensors it hears</h2>
+    <p class="small">Every Govee H5074 in range. The ID is the last 4 characters of the sensor's name
+      (Govee_H5074_<b>ABCD</b>) — write it on each sensor. Strongest signal = closest.</p>
+    <p><button id="sensors" class="btn" disabled>Refresh</button>
+       <label class="small"><input type="checkbox" id="auto"> refresh every 5 s</label></p>
+    <table id="sensorTable">
+      <thead><tr><th>ID</th><th>°C</th><th>RH %</th><th>Battery</th><th>Signal</th><th>Heard</th><th>Logged</th></tr></thead>
+      <tbody><tr><td colspan="7" class="small">—</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span> Settings</h2>
+    <p class="small">Sent straight down the USB cable and stored on the bridge only. This page makes no
+      network requests with them, and the bridge never sends the key back. Leave the key empty to keep the current one.</p>
+    <form id="cfg" autocomplete="off">
+      <label>Wi-Fi name (2.4 GHz)<input id="ssid" maxlength="32" spellcheck="false"></label>
+      <label>Wi-Fi password<input id="pass" type="password" maxlength="63"></label>
+      <label>GitHub key (fine-grained, starts with github_pat_)<input id="token" type="password" spellcheck="false"></label>
+      <label>Sensors repo<input id="repo" value="KPqui/flowerphile-sensors" spellcheck="false"></label>
+      <label>Sensor IDs to log (empty = every H5074 it hears)<input id="ids" placeholder="A1B2, C3D4, …" spellcheck="false"></label>
+      <label class="inline"><input type="checkbox" id="led" checked> short status blink every 10 s</label>
+      <p><button class="btn" id="send" type="submit" disabled>Save to bridge</button></p>
+    </form>
+  </section>
+
+  <section>
+    <h2><span class="n">5</span> Status</h2>
+    <p><button id="status" class="btn" disabled>Refresh</button>
+       <button id="push" class="btn ghost" disabled>Push now (test)</button></p>
+    <dl id="statusList"></dl>
+    <p class="small">Light: <b class="c-g">green</b> fine · <b class="c-a">amber</b> no Wi-Fi/time ·
+      <b class="c-p">purple</b> no sensors heard for 30 min · <b class="c-r">red</b> key/repo problem or pushes failing ·
+      <b class="c-b">blue</b> needs settings. Hold the front button to see it; hold 5 s to push now.</p>
+  </section>
+
+  <details>
+    <summary>Log</summary>
+    <pre id="log"></pre>
+  </details>
+</main>
+</body>
+</html>

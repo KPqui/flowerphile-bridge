@@ -1,0 +1,77 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Tools
+        run: pip install platformio==6.2.0 esptool==4.8.1
+
+      - name: Decoder tests
+        run: g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/t test/test_govee.cpp && /tmp/t
+
+      - name: Version
+        run: echo "FW_VERSION=$(date -u +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Build firmware
+        run: pio run -e atoms3lite
+
+      - name: Assemble flashing site
+        run: |
+          set -euo pipefail
+          B=.pio/build/atoms3lite
+          BOOT_APP0=$(find ~/.platformio/packages/framework-arduinoespressif32 -name boot_app0.bin | head -1)
+          mkdir -p site/ewt
+          # one image for offset 0: bootloader (S3: 0x0), partition table, OTA data, app
+          esptool.py --chip esp32s3 merge_bin -o site/flowerphile-bridge.bin \
+            --flash_mode keep --flash_freq keep --flash_size keep \
+            0x0 "$B/bootloader.bin" 0x8000 "$B/partitions.bin" 0xe000 "$BOOT_APP0" 0x10000 "$B/firmware.bin"
+          cp web/* site/
+          sed -i "s/__VERSION__/${FW_VERSION}/g" site/manifest.json site/index.html
+          # ESP Web Tools, pinned and served from this site (no third-party CDN at runtime)
+          npm pack esp-web-tools@10.5.2 --silent
+          tar xzf esp-web-tools-10.5.2.tgz
+          cp package/dist/web/* site/ewt/
+          ls -la site
+          sha256sum site/flowerphile-bridge.bin | tee site/flowerphile-bridge.sha256
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

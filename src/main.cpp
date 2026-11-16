@@ -391,6 +391,18 @@ static bool pushOnce() {
   authError = (code == 401 || code == 404 || (code == 403 && resp.indexOf("rate limit") < 0));
 
   Serial.printf("push %s: %d lines -> %d\n", batchPath.c_str(), batchLines, code);
+  {
+    JsonDocument d;  // tell the setup page right away, so it doesn't have to guess when to look
+    d["type"] = "push";
+    d["ok"] = ok;
+    d["code"] = code;
+    d["lines"] = batchLines;
+    d["path"] = batchPath;
+    if (!ok) d["msg"] = lastMsg;
+    Serial.print('@');
+    serializeJson(d, Serial);
+    Serial.println();
+  }
   if (ok) {
     recPopFront(batchLines);
     pushedTotal += batchLines;

@@ -98,6 +98,11 @@ function onLine(line) {
   if (d.type === "status") renderStatus(d);
   else if (d.type === "sensors") renderSensors(d.list || []);
   else if (d.type === "ok") log("✓ " + d.msg, "ok");
+  else if (d.type === "push") {
+    if (d.ok) log("✓ pushed " + d.lines + " reading(s) → " + d.path, "ok");
+    else log("✗ push failed (" + d.code + "): " + (d.msg || ""), "bad");
+    send("STATUS");
+  }
   else if (d.type === "error") { log("✗ " + d.msg, "bad"); alert(d.msg); }
 }
 
@@ -176,7 +181,8 @@ $("sensors").onclick = () => send("SENSORS");
 $("status").onclick = () => send("STATUS");
 $("push").onclick = async () => {
   await send("PUSH");
-  setTimeout(() => send("STATUS"), 12000);
+  log("pushing… (takes 10–20 s; the result appears here)");
+  document.querySelector("details").open = true;
 };
 $("auto").onchange = (e) => {
   if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
